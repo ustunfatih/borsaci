@@ -21,8 +21,9 @@ Borsacı, Borsa MCP sunucusunu kullanarak BIST hisseleri, TEFAS fonları, kripto
 - **Auto-Update System**: GitHub commit-based otomatik güncelleme
 - **Türkçe Native**: Tamamen Türkçe komutlar ve çıktılar
 - **Type-Safe**: PydanticAI ile güvenli ve IDE-friendly geliştirme
-- **Güçlü LLM**: Google Gemini 2.5 Series (Pro + Flash)
-- **Cost-Effective**: OpenRouter ile esnek ve ekonomik model kullanımı
+- **Güçlü LLM**: Google Gemini 3 Series (Pro + Flash)
+- **Ücretsiz Kullanım**: Google OAuth ile ücretsiz Gemini API erişimi
+- **Alternatif**: OpenRouter ile ücretli API kullanımı (fallback)
 
 ## 📦 Kapsam
 
@@ -82,7 +83,9 @@ docker-compose run --rm borsaci
     * **Windows Kullanıcıları (PowerShell):** Bir CMD ekranı açın ve bu kodu çalıştırın: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
     * **Mac/Linux Kullanıcıları (Terminal):** Bir Terminal ekranı açın ve bu kodu çalıştırın: `curl -LsSf https://astral.sh/uv/install.sh | sh`
 * **Microsoft Visual C++ Redistributable (Windows):** Bazı Python paketlerinin doğru çalışması için gereklidir. [Buradan](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170) indirip kurun.
-* OpenRouter kredisi satın alın ve API anahtarı oluşturun ([API anahtarı](https://openrouter.ai/keys))
+* **Node.js (Opsiyonel, Google OAuth için):** Google OAuth kullanmak için Node.js gereklidir. [Buradan](https://nodejs.org/) indirip kurun.
+* **Gemini CLI (Önerilen, ÜCRETSİZ):** `npm install -g @google/gemini-cli` ile yükleyin ve `gemini` komutuyla bir kez giriş yapın
+* **VEYA** OpenRouter kredisi satın alın ve API anahtarı oluşturun ([API anahtarı](https://openrouter.ai/keys))
 
 #### Adım Adım
 
@@ -99,17 +102,28 @@ git pull
 # 2. Dependencies'i yükleyin
 uv sync
 
-# 3. Çalıştırın
+# 3a. ÖNERİLEN: Google OAuth (ÜCRETSİZ)
+npm install -g @google/gemini-cli  # Gemini CLI yükle
+gemini                              # Bir kez giriş yap (browser açılır)
+uv run borsaci                      # Otomatik olarak Gemini CLI credentials kullanır
+
+# 3b. ALTERNATİF: OpenRouter (Ücretli)
 uv run borsaci
-# İlk çalıştırmada OpenRouter API key'iniz otomatik olarak sorulacak
+# İlk çalıştırmada OpenRouter API key'iniz sorulacak
 ```
 
-**Not:** CLI ilk çalıştırmada `OPENROUTER_API_KEY` bulamazsa sizden isteyecek ve otomatik olarak `.env` dosyasına kaydedecektir. Manuel kurulum yapmanıza gerek yok!
+**Önerilen Yöntem:** Gemini CLI ile Google OAuth kullanın - tamamen **ÜCRETSİZ**!
+
+**Not:** BorsaCI önce Google OAuth credentials (`~/.gemini/oauth_creds.json`) arar. Bulamazsa OpenRouter API key sorar.
 
 #### Environment Variables (.env)
 
 ```bash
-# Zorunlu
+# Provider Seçimi (Google OAuth önerilir - ÜCRETSİZ)
+# Google OAuth: ~/.gemini/oauth_creds.json otomatik kullanılır
+# OpenRouter: OPENROUTER_API_KEY gerektirir
+
+# Sadece OpenRouter kullanıyorsanız zorunlu
 OPENROUTER_API_KEY=sk-or-v1-your-api-key-here
 
 # Opsiyonel (OpenRouter rankings için)
@@ -128,8 +142,14 @@ PARALLEL_EXECUTION=true         # Paralel görev yürütme (önerilen: true)
                                # false: Sıralı yürütme (debug için)
 ```
 
+**Provider Seçimi:**
+- **Google OAuth (Önerilen)**: ÜCRETSİZ! Gemini CLI credentials kullanır
+  - Kurulum: `npm install -g @google/gemini-cli && gemini`
+  - Credentials: `~/.gemini/oauth_creds.json` → `~/.borsaci/credentials/google.json`
+- **OpenRouter (Alternatif)**: Ücretli API, `OPENROUTER_API_KEY` gerektirir
+  - İlk çalıştırmada otomatik sorulur
+
 **Not:**
-- `OPENROUTER_API_KEY` ilk çalıştırmada otomatik sorulur ve `.env` dosyasına kaydedilir
 - `PARALLEL_EXECUTION=true` ile 50-70% performans artışı elde edilir
 - Timeout değerleri: Planning (300s), Action (300s), Answer (300s)
 

@@ -78,10 +78,10 @@ def create_candlestick_from_json(
     Create candlestick chart from MCP OHLC JSON data (auto-parse wrapper).
 
     This is a simplified wrapper around create_candlestick_chart that automatically
-    parses MCP get_finansal_veri output and renders the chart.
+    parses MCP get_historical_data output and renders the chart.
 
     Args:
-        json_data: Raw JSON string from MCP tool (get_finansal_veri)
+        json_data: Raw JSON string from MCP tool (get_historical_data)
                   Expected format: '[{"date":"2024-01-01","open":100,"high":105,"low":98,"close":102}]'
         title: Chart title
         width: Chart width (None = auto)
@@ -250,7 +250,7 @@ def create_histogram(
 
 def parse_price_data_for_candlestick(mcp_output: str) -> Optional[Dict[str, List]]:
     """
-    Parse MCP get_price_data output to extract OHLC data for candlestick chart.
+    Parse MCP get_historical_data output to extract OHLC data for candlestick chart.
 
     Expected format: JSON string or dict with structure:
     [

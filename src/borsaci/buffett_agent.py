@@ -8,7 +8,7 @@ from pydantic_ai import Agent, RunContext
 from pydantic_ai.usage import RunUsage
 from pydantic_ai.mcp import CallToolFunc, ToolResult
 
-from .model import get_action_model
+from .model import get_action_model, get_model_for_agent, is_google_provider
 from .prompts import get_warren_buffett_prompt, get_data_collection_prompt
 from .mcp_tools import BorsaMCP
 from .utils.logger import Logger
@@ -16,16 +16,21 @@ from .utils.logger import Logger
 logger = Logger()
 
 
-# MCP Tool name → User-friendly message mapping
+# MCP Tool name → User-friendly message mapping (Unified API)
 MCP_TOOL_MESSAGES = {
-    "find_ticker_code": "🔍 Şirket ticker kodu aranıyor...",
-    "calculate_buffett_value_analysis": "🧮 Buffett analizi yapılıyor (OE, DCF, Güvenlik Marjı)...",
-    "get_sirket_profili": "🏢 Şirket profili getiriliyor...",
-    "get_bilanco": "📋 Bilanço verileri alınıyor...",
-    "get_kar_zarar_tablosu": "💰 Gelir tablosu getiriliyor...",
-    "get_nakit_akisi_tablosu": "💸 Nakit akışı verileri alınıyor...",
-    "get_hizli_bilgi": "💵 Güncel fiyat bilgisi alınıyor...",
-    "get_analist_tahminleri": "📊 Analist tahminleri getiriliyor...",
+    "search_symbol": "🔍 Sembol aranıyor...",
+    "get_profile": "🏢 Şirket profili getiriliyor...",
+    "get_financial_ratios": "🧮 Buffett analizi yapılıyor (OE, DCF, Güvenlik Marjı)...",
+    "get_financial_statements": "📋 Finansal tablolar alınıyor...",
+    "get_quick_info": "💵 Güncel fiyat bilgisi alınıyor...",
+    "get_analyst_data": "📊 Analist verileri getiriliyor...",
+    "get_historical_data": "📈 Fiyat geçmişi alınıyor...",
+    "get_technical_analysis": "📊 Teknik analiz yapılıyor...",
+    "get_dividends": "💰 Temettü verileri getiriliyor...",
+    "get_crypto_market": "₿ Kripto piyasa verisi alınıyor...",
+    "get_fx_data": "💱 Döviz/emtia verisi alınıyor...",
+    "get_fund_data": "📦 Fon verileri getiriliyor...",
+    "get_macro_data": "📊 Makro ekonomi verisi alınıyor...",
 }
 
 
@@ -77,6 +82,9 @@ class BuffettAgent:
         """
         Initialize BuffettAgent with two-phase architecture.
 
+        Note: Agents are created asynchronously in _init_agents() to support
+        Google OAuth token refresh. Call analyze() to auto-initialize.
+
         Args:
             mcp_client: BorsaMCP client for accessing financial data
         """
@@ -86,17 +94,35 @@ class BuffettAgent:
             process_tool_call=buffett_process_tool_call
         )
 
-        # Model selection (allow override via env)
-        model = os.getenv("BUFFETT_MODEL", get_action_model())
+        # Agents will be initialized in _init_agents() (async context)
+        self.data_collector = None
+        self.analyzer = None
+        self._agents_initialized = False
+
+    async def _init_agents(self):
+        """
+        Initialize agents asynchronously.
+
+        Supports both OpenRouter (sync model strings) and Google OAuth
+        (async GeminiModel creation with Bearer token).
+        """
+        if self._agents_initialized:
+            return
+
+        # Get model (async for Google OAuth, string for OpenRouter)
+        if is_google_provider():
+            model = await get_model_for_agent("buffett")
+        else:
+            model = os.getenv("BUFFETT_MODEL", get_action_model())
 
         # Phase 1: Data Collection Agent
         # - Uses MCP tools to gather financial data
-        # - calculate_buffett_value_analysis MCP tool does all calculations
+        # - get_financial_ratios(ratio_set="buffett") MCP tool does all calculations
         # - No structured output - returns YAML with raw data + calculations
         self.data_collector = Agent(
             model=model,
             system_prompt=get_data_collection_prompt(),
-            toolsets=[self.mcp],  # MCP tools (includes calculate_buffett_value_analysis)
+            toolsets=[self.mcp],  # MCP tools (includes get_financial_ratios with ratio_set="buffett")
             # No tools parameter - all calculations done by MCP tool
             # No output_type - free-form tool calling
             retries=3,
@@ -113,6 +139,8 @@ class BuffettAgent:
             # No output_type - free-form markdown
             retries=3,
         )
+
+        self._agents_initialized = True
 
     async def analyze(
         self,
@@ -141,6 +169,9 @@ class BuffettAgent:
             Markdown-formatted analysis report (string)
         """
         import sys
+
+        # Initialize agents (async for Google OAuth)
+        await self._init_agents()
 
         if "--debug" in sys.argv:
             print(f"[DEBUG] BuffettAgent analyzing query: {query}")
@@ -617,7 +648,7 @@ Türkiye Pazarı İçin Düzeltmeler:
 # =============================================================================
 
 # NOTE: Python calculation functions moved to Borsa MCP
-# All Buffett value calculations now performed by calculate_buffett_value_analysis MCP tool
+# All Buffett value calculations now performed by get_financial_ratios(ratio_set="buffett") MCP tool
 # This includes:
 #   - Owner Earnings calculation
 #   - OE Yield calculation

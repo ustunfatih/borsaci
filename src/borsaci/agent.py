@@ -18,6 +18,13 @@ from .model import (
     create_validation_agent,
     create_base_agent,
     get_answer_model,
+    # Async versions for Google OAuth support
+    create_planning_agent_async,
+    create_action_agent_async,
+    create_validation_agent_async,
+    create_answer_agent_async,
+    create_base_agent_async,
+    is_google_provider,
 )
 from .schemas import TaskList, IsDone, Task, BaseResponse
 from .prompts import (
@@ -59,6 +66,9 @@ class BorsaAgent:
         """
         Initialize BorsaAgent.
 
+        Note: Agents are created asynchronously in __aenter__() to support
+        Google OAuth token refresh. Use with 'async with agent:' context.
+
         Args:
             max_steps: Global step limit (default: 20)
             max_steps_per_task: Per-task iteration limit (default: 5)
@@ -73,57 +83,124 @@ class BorsaAgent:
         # MCP Client
         self.mcp = mcp_client or get_mcp_client()
 
-        # Multi-agent setup (programmatic hand-off pattern)
-        # Base agent for routing decisions (simple vs complex queries)
-        self.base_agent = create_base_agent(
-            output_type=BaseResponse,
-            system_prompt=BASE_AGENT_PROMPT.format(current_date=self._get_date()),
-        )
+        # Agents will be initialized in __aenter__() (async context)
+        # This is required for Google OAuth token refresh
+        self.base_agent = None
+        self.planner = None
+        self.actor = None
+        self.validator = None
+        self.answerer = None
 
-        self.planner = create_planning_agent(
-            output_type=TaskList,
-            system_prompt=PLANNING_PROMPT.format(current_date=self._get_date()),
-        )
-
-        self.actor = create_action_agent(
-            system_prompt=ACTION_PROMPT.format(current_date=self._get_date()),
-            mcp_client=self.mcp,
-            deps_type=BorsaMCP,
-        )
-
-        self.validator = create_validation_agent(
-            output_type=IsDone,
-            system_prompt=VALIDATION_PROMPT,
-        )
-
-        # Create answer agent (no chart tools - charts rendered separately in CLI)
-        self.answerer = Agent(
-            model=get_answer_model(),
-            system_prompt=get_answer_prompt(),
-            retries=3,
-        )
+        # Track initialization state
+        self._agents_initialized = False
 
         # Session state
         self.last_actions = []
 
+    async def _init_agents(self):
+        """
+        Initialize all agents asynchronously.
+
+        This method supports both OpenRouter (sync) and Google OAuth (async).
+        For Google OAuth, it refreshes tokens and creates GeminiModel instances.
+        """
+        if self._agents_initialized:
+            return
+
+        # Check if using Google OAuth (requires async model creation)
+        if is_google_provider():
+            # Async agent creation for Google OAuth
+            self.base_agent = await create_base_agent_async(
+                output_type=BaseResponse,
+                system_prompt=BASE_AGENT_PROMPT.format(current_date=self._get_date()),
+            )
+
+            self.planner = await create_planning_agent_async(
+                output_type=TaskList,
+                system_prompt=PLANNING_PROMPT.format(current_date=self._get_date()),
+            )
+
+            self.actor = await create_action_agent_async(
+                system_prompt=ACTION_PROMPT.format(current_date=self._get_date()),
+                mcp_client=self.mcp,
+                deps_type=BorsaMCP,
+            )
+
+            self.validator = await create_validation_agent_async(
+                output_type=IsDone,
+                system_prompt=VALIDATION_PROMPT,
+            )
+
+            self.answerer = await create_answer_agent_async(
+                output_type=str,  # Free-form text output (str type to avoid PydanticAI null schema issue)
+                system_prompt=get_answer_prompt(),
+            )
+        else:
+            # Sync agent creation for OpenRouter
+            self.base_agent = create_base_agent(
+                output_type=BaseResponse,
+                system_prompt=BASE_AGENT_PROMPT.format(current_date=self._get_date()),
+            )
+
+            self.planner = create_planning_agent(
+                output_type=TaskList,
+                system_prompt=PLANNING_PROMPT.format(current_date=self._get_date()),
+            )
+
+            self.actor = create_action_agent(
+                system_prompt=ACTION_PROMPT.format(current_date=self._get_date()),
+                mcp_client=self.mcp,
+                deps_type=BorsaMCP,
+            )
+
+            self.validator = create_validation_agent(
+                output_type=IsDone,
+                system_prompt=VALIDATION_PROMPT,
+            )
+
+            # Create answer agent (no chart tools - charts rendered separately in CLI)
+            self.answerer = Agent(
+                model=get_answer_model(),
+                system_prompt=get_answer_prompt(),
+                retries=3,
+            )
+
+        self._agents_initialized = True
+
     async def __aenter__(self):
         """
-        Enter async context - open MCP connection.
+        Enter async context - open MCP connection and initialize agents.
 
         This allows using the agent with 'async with':
             async with agent:
                 result = await agent.run(query)
+
+        For Google OAuth, this is where tokens are refreshed and
+        agents are created with Bearer token authentication.
         """
         # Open MCP server connection for the session
         await self.mcp.__aenter__()
+
+        # Initialize agents (async for Google OAuth, sync for OpenRouter)
+        await self._init_agents()
+
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """
-        Exit async context - close MCP connection cleanly.
+        Exit async context - close MCP connection and OAuth client cleanly.
 
-        Ensures MCP connection is properly closed even on errors.
+        Ensures MCP connection and OAuth httpx client are properly closed even on errors.
         """
+        # Close Google OAuth httpx client if using Google provider
+        if is_google_provider():
+            try:
+                from .google_oauth_provider import get_google_oauth_provider
+                oauth_provider = get_google_oauth_provider()
+                await oauth_provider.close()
+            except Exception:
+                pass  # Ignore cleanup errors
+
         # Close MCP server connection
         await self.mcp.__aexit__(exc_type, exc_val, exc_tb)
         return False  # Don't suppress exceptions

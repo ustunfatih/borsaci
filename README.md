@@ -272,11 +272,13 @@ Görevler:
 
 Her görev için uygun Borsa MCP aracını seçer ve çalıştırır. PydanticAI MCP toolset entegrasyonu ile LLM otomatik araç seçimi yapar.
 
-**Araç Seçimi:**
-- Şirket araması → `search_bist_companies`
-- Finansal tablo → `get_company_financials`
-- Fon araması → `search_funds`
-- Kripto fiyat → `get_btcturk_ticker`, `get_coinbase_ticker`
+**Araç Seçimi (Unified API):**
+- Şirket araması → `search_symbol`
+- Finansal tablo → `get_financial_statements`
+- Fiyat bilgisi → `get_quick_info`, `get_historical_data`
+- Fon araması → `get_fund_data`, `screen_funds`
+- Kripto fiyat → `get_crypto_market`
+- Döviz/Emtia → `get_fx_data`
 
 ### 3. Validation Agent
 **Model**: Google Gemini 2.5 Flash (hızlı validation)

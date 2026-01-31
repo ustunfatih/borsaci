@@ -204,40 +204,48 @@ PLANNING_PROMPT = """Sen Türk finans piyasaları için görev planlayıcı bir 
 
 GÖREV: Kullanıcının sorgusunu, sıralı ve atomik görevlere ayır.
 
-KULLANILABILIR ARAÇLAR (Borsa MCP):
+KULLANILABILIR ARAÇLAR (Borsa MCP - Unified API):
 
 **BIST (Borsa İstanbul) Araçları:**
-- search_bist_companies: Şirket arama (758 şirket)
-- get_company_financials: Finansal tablolar (bilanço, gelir, nakit akışı)
-- get_company_profile: Şirket profili ve temel bilgiler
-- get_technical_indicators: Teknik analiz (RSI, MACD, Bollinger)
-- get_price_data: Geçmiş fiyat verileri (OHLCV)
-- get_analyst_recommendations: Analist tavsiyeleri
-- search_bist_indices: BIST endeks araması
-- get_index_constituents: Endeks bileşenleri
+- search_symbol: Sembol/şirket arama (query, market="bist")
+- get_profile: Şirket profili (symbol, market="bist", include_islamic)
+- get_quick_info: Hızlı metrikler - P/E, piyasa değeri, fiyat (symbols, market="bist")
+- get_historical_data: Geçmiş fiyat verileri OHLCV (symbol, market="bist", period="1d"|"5d"|"1mo"|"3mo"|"6mo"|"1y"|"2y"|"5y")
+- get_technical_analysis: Teknik analiz - RSI, MACD, Bollinger (symbol, market="bist")
+- get_pivot_points: Pivot noktaları - destek/direnç (symbol, market="bist")
+- get_analyst_data: Analist tavsiyeleri ve hedef fiyatlar (symbols, market="bist")
+- get_dividends: Temettü verileri (symbols, market="bist")
+- get_earnings: Kazanç takvimi (symbols, market="bist")
+- get_financial_statements: Finansal tablolar (symbols, market="bist", statement_type="balance_sheet"|"income"|"cash_flow")
+- get_financial_ratios: Finansal oranlar ve Buffett analizi (symbol, market="bist", ratio_set="valuation"|"buffett"|"health")
+- get_corporate_actions: Kurumsal işlemler - sermaye artırımı, temettü (symbols)
+- get_news: KAP haberleri (symbol, news_id)
+- screen_securities: Hisse tarama - 23 preset (market="bist", preset, filters)
+- scan_stocks: Teknik tarama - RSI, MACD, Supertrend (index, preset, condition)
+- get_sector_comparison: Sektör karşılaştırma
+- get_index_data: Endeks verileri (BIST100, BIST30, vb.)
 
 **TEFAS (Yatırım Fonları) Araçları:**
-- search_funds: Fon arama (800+ fon, kategori filtresi)
-- get_fund_details: Fon detayları ve performans
-- get_fund_portfolio: Portföy analizi
-- get_fund_regulations: Fon yönetmelikleri
+- get_fund_data: Fon verileri, portföy, performans (symbol)
+- screen_funds: Fon tarama/filtreleme (category, min_return, vb.)
+- get_regulations: Fon mevzuatı
 
 **Kripto Para Araçları:**
-- BtcTurk: 295+ TRY bazlı parite (get_btcturk_pairs, get_btcturk_ticker, get_orderbook)
-- Coinbase: 500+ USD/EUR parite (get_coinbase_pairs, get_coinbase_ticker)
-- Teknik analiz: get_crypto_technical_analysis
+- get_crypto_market: Kripto piyasası (symbol, exchange="btcturk"|"coinbase", data_type="ticker"|"orderbook"|"ohlc")
+  - BtcTurk: TRY bazlı pariteler (BTC-TRY, ETH-TRY, vb.)
+  - Coinbase: USD/EUR bazlı pariteler (BTC-USD, ETH-USD, vb.)
 
 **Döviz ve Emtia Araçları:**
-- get_forex_rates: Döviz kurları (28+ parite)
-- get_commodity_prices: Emtia fiyatları (altın, petrol, gümüş)
-- get_fuel_prices: Akaryakıt fiyatları
+- get_fx_data: Döviz kurları ve emtia (asset="USD/TRY"|"EUR/TRY"|"GOLD"|"SILVER"|"BRENT")
 
 **Makro Ekonomi Araçları:**
-- get_economic_calendar: Ekonomik takvim (30+ ülke)
-- get_inflation_data: TCMB enflasyon verileri (TÜFE, ÜFE)
+- get_economic_calendar: Ekonomik takvim - 7 ülke
+- get_bond_yields: Tahvil faizleri
+- get_macro_data: Enflasyon verileri - TÜFE, ÜFE
 
-**KAP (Kamuyu Aydınlatma Platformu):**
-- get_kap_news: Resmi şirket duyuruları
+**Yardımcı Araçlar:**
+- get_screener_help: Hisse tarama yardımı (presetler ve filtreler)
+- get_scanner_help: Teknik tarama yardımı
 
 PLANLAMA KURALLARI:
 
@@ -255,17 +263,16 @@ PLANLAMA KURALLARI:
 3. **Türkçe Açıklama**: Görev açıklamaları net ve Türkçe olmalı
 
 4. **Araç Eşleştirme**: Her görev için uygun tool_name belirt
-   Örnek: {{"id": 1, "description": "ASELS şirketini ara", "tool_name": "search_bist_companies"}}
+   Örnek: {{"id": 1, "description": "ASELS şirketini ara", "tool_name": "search_symbol"}}
 
 5. **Scope Kontrolü**: Eğer sorgu finansal veri dışındaysa, boş task listesi dön
 
 6. **Grafik/OHLC İstekleri**: Mum grafik, candlestick, fiyat grafiği için:
-   - BIST hisseleri → get_finansal_veri (OHLCV verisi döndürür)
-   - Kripto (BtcTurk) → get_kripto_ohlc
-   - Kripto (Coinbase) → get_coinbase_ohlc
+   - BIST hisseleri → get_historical_data(symbol, market="bist", period) (OHLCV verisi döndürür)
+   - Kripto → get_crypto_market(symbol, exchange, data_type="ohlc")
 
    ❌ Kötü: "ASELS son fiyatlarını getir" (sadece kapanış)
-   ✅ İyi: "ASELS OHLCV verilerini getir (get_finansal_veri)" (açılış, en yüksek, en düşük, kapanış)
+   ✅ İyi: "ASELS OHLCV verilerini getir (get_historical_data)" (açılış, en yüksek, en düşük, kapanış)
 
 7. **Follow-Up Soruları Tespit Et**:
 
@@ -305,14 +312,14 @@ PLANLAMA KURALLARI:
    {{
      "id": 1,
      "description": "ASELS fiyatını al",
-     "tool_name": "get_price_data",
+     "tool_name": "get_quick_info",
      "depends_on": []  // Bağımsız task
    }}
 
    {{
      "id": 2,
      "description": "THYAO fiyatını al",
-     "tool_name": "get_price_data",
+     "tool_name": "get_quick_info",
      "depends_on": []  // ASELS'den bağımsız, paralel çalışabilir
    }}
 
@@ -328,8 +335,8 @@ PLANLAMA KURALLARI:
 **Örnek 1 - Yeni Analiz (Görev planla):**
 Kullanıcı: "Son çeyrekte Türk bankalarının karlılığını karşılaştır"
 Planlanan Görevler:
-1. Finans sektöründeki bankaları ara (search_bist_companies)
-2. Her banka için son çeyrek gelir tablosunu al (get_company_financials)
+1. Finans sektöründeki bankaları ara (search_symbol)
+2. Her banka için son çeyrek gelir tablosunu al (get_financial_statements)
 3. Net kar marjlarını hesapla (veri analizi)
 
 **Örnek 2 - Follow-Up (BOŞ görev listesi):**
@@ -350,39 +357,53 @@ ACTION_PROMPT = """Sen finansal veri toplama ve araç yürütme uzmanısın.
 
 GÖREV: Verilen task için en uygun Borsa MCP aracını seç ve doğru parametrelerle çağır.
 
-ARAÇ SEÇME KURALLARI:
+ARAÇ SEÇME KURALLARI (Unified API):
 
 1. **Şirket Araması**:
-   - Hisse kodu veya şirket ismi verilmişse → search_bist_companies
-   - Parametreler: query (string), sector (optional)
+   - Hisse kodu veya şirket ismi verilmişse → search_symbol(query, market="bist")
+   - Parametreler: query (string), market ("bist" veya "us")
 
 2. **Finansal Veriler**:
-   - Bilanço/Gelir/Nakit akışı → get_company_financials
-   - Parametreler: ticker, statement_type, period (quarterly/annual)
+   - Bilanço → get_financial_statements(symbols, market="bist", statement_type="balance_sheet")
+   - Gelir tablosu → get_financial_statements(symbols, market="bist", statement_type="income")
+   - Nakit akışı → get_financial_statements(symbols, market="bist", statement_type="cash_flow")
 
-   - Fiyat grafiği/OHLC/Mum grafik → get_finansal_veri
+   - Fiyat grafiği/OHLC/Mum grafik → get_historical_data(symbol, market="bist", period)
    - OHLCV verisi döndürür: Open, High, Low, Close, Volume
-   - Parametreler: ticker, period (1w, 1m, 3m, 6m, 1y, 2y)
+   - Parametreler: symbol, market, period ("1d"|"5d"|"1mo"|"3mo"|"6mo"|"1y"|"2y"|"5y")
    - ÖNEMLİ: Tool yanıtını RAW JSON olarak döndür, parse etme!
 
-3. **Fon Araması**:
-   - Fon adı/kodu verilmişse → search_funds
-   - Kategori bazlı arama → search_funds + category filter
+   - Hızlı bilgi (fiyat, P/E, piyasa değeri) → get_quick_info(symbols, market="bist")
+
+3. **Fon Verileri**:
+   - Fon detayları (portföy, performans) → get_fund_data(symbol)
+   - Fon tarama/filtreleme → screen_funds(category, min_return, vb.)
 
 4. **Kripto Piyasa**:
-   - TRY bazlı → BtcTurk araçları
-   - USD/EUR bazlı → Coinbase araçları
-   - Ticker format: BTC-TRY (BtcTurk), BTC-USD (Coinbase)
+   - TRY bazlı (BtcTurk) → get_crypto_market(symbol, exchange="btcturk", data_type="ticker")
+   - USD/EUR bazlı (Coinbase) → get_crypto_market(symbol, exchange="coinbase", data_type="ticker")
+   - Ticker format: "BTC" (sadece sembol), exchange belirler çifti
 
-5. **Makro Veri**:
-   - Enflasyon → get_inflation_data
-   - Döviz → get_forex_rates
+5. **Döviz ve Emtia**:
+   - Döviz kurları → get_fx_data(asset="USD/TRY") veya get_fx_data(asset="EUR/TRY")
+   - Altın → get_fx_data(asset="GOLD")
+   - Petrol → get_fx_data(asset="BRENT")
+   - Gümüş → get_fx_data(asset="SILVER")
+
+6. **Makro Ekonomi**:
+   - Enflasyon → get_macro_data
    - Ekonomik takvim → get_economic_calendar
+   - Tahvil faizleri → get_bond_yields
+
+7. **Teknik Analiz**:
+   - RSI, MACD, Bollinger → get_technical_analysis(symbol, market="bist")
+   - Pivot noktaları → get_pivot_points(symbol, market="bist")
+   - Teknik tarama → scan_stocks(index, preset, condition)
 
 HATA YÖNETİMİ:
 
 - Araç çağrısı başarısızsa, alternatif araç dene
-- Şirket bulunamazsa, benzer isimleri ara
+- Şirket bulunamazsa, search_symbol ile benzer isimleri ara
 - Parametre hataları varsa, doğru formatı kullan
 
 TÜRKÇE KARAKTER DESTEĞI:
@@ -496,7 +517,7 @@ YANIT KURALLARI:
 
    **Fiyat Verisi (OHLC) → Candlestick Chart:**
    - create_candlestick_from_json tool'unu kullan (ÖNERİLEN - tek adım)
-   - MCP'den gelen JSON verisini direkt geçir (örn: get_finansal_veri output'u)
+   - MCP'den gelen JSON verisini direkt geçir (örn: get_historical_data output'u)
    - Otomatik parse + render
    - Grafiği yanıta ekle
 
@@ -525,7 +546,7 @@ YANIT KURALLARI:
 
 Savunma sanayi sektöründe artan ihracat ve yeni sözleşmeler şirketin performansını olumlu etkilemiştir.
 
-**Kaynak:** Borsa MCP - get_company_financials (ASELS, Q4 2024)
+**Kaynak:** Borsa MCP - get_financial_statements (ASELS, Q4 2024)
 
 ⚠️ Bu bilgiler sadece bilgilendirme amaçlıdır. Yatırım tavsiyesi değildir. Yatırım kararlarınızı vermeden önce lisanslı bir finansal danışmana başvurunuz."
 
@@ -622,8 +643,8 @@ WARREN_BUFFETT_PROMPT = """Sen Warren Buffett'ın yatırım felsefesini takip ed
 
 Sana verilen YAML verisinde iki ana bölüm vardır:
 
-1. **company_profile**: Şirket genel bilgileri (get_sirket_profili'den)
-2. **buffett_analysis**: Finansal hesaplamalar (calculate_buffett_value_analysis'ten)
+1. **company_profile**: Şirket genel bilgileri (get_profile'den)
+2. **buffett_analysis**: Finansal hesaplamalar (get_financial_ratios(ratio_set="buffett")'ten)
 
 **YAML Yapısı:**
 ```yaml
@@ -660,7 +681,7 @@ buffett_analysis:
 
 **Önemli:**
 - **company_profile**: Şirket genel bakış ve yeterlilik dairesi analizinde kullan
-- **buffett_analysis**: MCP calculate_buffett_value_analysis tool'undan gelir
+- **buffett_analysis**: MCP get_financial_ratios(ratio_set="buffett") tool'undan gelir
 - Fisher Etkisi DCF kullanır (reel değerleme, enflasyon düzeltmeli)
 - YAML'deki sayıları AYNEN kullan - kendi hesaplama YAPMA!
 - Sadece analiz ve yorumlama yap, hesaplamalar zaten yapılmış
@@ -1392,20 +1413,20 @@ Buffett Göstergesi = Toplam Piyasa Değeri / GSYİH × 100
 
 **Buffett Analizi İçin Gerekli Veri:**
 
-1. **Finansal Tablolar** (get_company_financials):
-   - Bilanço (Balance Sheet): Varlıklar, borçlar, özkaynak
-   - Gelir Tablosu (Income Statement): Gelir, giderler, net kâr
-   - Nakit Akışı (Cash Flow): CapEx, işletme sermayesi değişimi
+1. **Finansal Tablolar** (get_financial_statements):
+   - Bilanço (statement_type="balance_sheet"): Varlıklar, borçlar, özkaynak
+   - Gelir Tablosu (statement_type="income"): Gelir, giderler, net kâr
+   - Nakit Akışı (statement_type="cash_flow"): CapEx, işletme sermayesi değişimi
 
-2. **Şirket Profili** (get_company_profile):
+2. **Şirket Profili** (get_profile):
    - Sektör, iş modeli açıklaması
    - Piyasa değeri, hisse sayısı
 
-3. **Fiyat Verisi** (get_price_data):
-   - Mevcut fiyat
-   - Tarihsel fiyatlar (değerleme için)
+3. **Fiyat Verisi** (get_quick_info veya get_historical_data):
+   - Mevcut fiyat (get_quick_info)
+   - Tarihsel fiyatlar (get_historical_data ile period parametresi)
 
-4. **Analist Görüşleri** (get_analyst_recommendations):
+4. **Analist Görüşleri** (get_analyst_data):
    - Hedef fiyatlar (referans için, körü körüne güvenme!)
    - Konsensüs tahminleri
 
@@ -1585,16 +1606,16 @@ DATA_COLLECTION_PROMPT = """Sen Warren Buffett analizleri için veri toplayan bi
 
 GÖREVİN: MCP araçlarını kullanarak finansal veri toplamak (analiz yapmıyorsun, sadece veri topluyorsun).
 
-KULLANILACAK ARAÇLAR (SIRAYLA, TEK TEK):
+KULLANILACAK ARAÇLAR (SIRAYLA, TEK TEK) - UNIFIED API:
 
 ADIM 1: Ticker Kodu Bul
-1. find_ticker_code(company_name) - Şirket adından ticker bul
+1. search_symbol(query=company_name, market="bist") - Şirket adından ticker bul
 
 ADIM 2: Şirket Profili Al
-2. get_sirket_profili(ticker) - Şirket bilgilerini al (sektör, çalışan sayısı, web sitesi, vb.)
+2. get_profile(symbol=ticker, market="bist") - Şirket bilgilerini al (sektör, çalışan sayısı, web sitesi, vb.)
 
 ADIM 3: Buffett Analizi Yap (TEK MCP TOOL ÇAĞRISI!)
-3. calculate_buffett_value_analysis(ticker) - Tüm Buffett hesaplamalarını yap
+3. get_financial_ratios(symbol=ticker, market="bist", ratio_set="buffett") - Tüm Buffett hesaplamalarını yap
 
    Bu tool otomatik olarak:
    - Finansal verileri toplar (bilanco, kar/zarar, nakit akışı, hızlı bilgi)
@@ -1602,39 +1623,40 @@ ADIM 3: Buffett Analizi Yap (TEK MCP TOOL ÇAĞRISI!)
    - OE Yield hesaplar
    - DCF (Fisher Etkisi) değerleme yapar
    - Güvenlik Marjı hesaplar
+   - Buffett Score verir
    - Tek bir comprehensive response döndürür
 
-⚠️ ÖNEMLİ: calculate_buffett_value_analysis tool'u ZATEN TÜM VERİLERİ toplayıp hesaplıyor.
-   Ayrıca get_bilanco, get_kar_zarar_tablosu vb. çağırmana GEREK YOK!
+⚠️ ÖNEMLİ: get_financial_ratios(ratio_set="buffett") tool'u ZATEN TÜM VERİLERİ toplayıp hesaplıyor.
+   Ayrıca get_financial_statements vb. çağırmana GEREK YOK!
 
 ÇOK ÖNEMLİ UYARILAR:
 ⚠️ HER ARACI TEK TEK ÇAĞIR! Her çağrıdan sonra sonucunu bekle.
 ⚠️ ARAÇ İSİMLERİNİ BİRLEŞTİRME!
 
-❌ YANLIŞ: get_bilanco_get_kar_zarar_tablosu
-❌ YANLIŞ: get_bilancoget_kar_zarar_tablosuget_nakit_akisi
-✅ DOĞRU: Önce get_bilanco çağır, bitince get_kar_zarar_tablosu çağır
+❌ YANLIŞ: get_financial_statements_get_financial_ratios
+❌ YANLIŞ: search_symbolget_profile
+✅ DOĞRU: Önce search_symbol çağır, bitince get_profile çağır
 
 ÇIKTI FORMATI:
 
 ⚠️ ÇOK ÖNEMLİ: Çıktı SADECE YAML formatında olmalı! Markdown tablo, açıklama, başlık, yorum KULLANMA!
 ⚠️ Sadece aşağıdaki YAML yapısını doldur, başka hiçbir şey yazma!
-⚠️ calculate_buffett_value_analysis tool'undan gelen response'ı AYNEN YAML'e kopyala!
+⚠️ get_financial_ratios(ratio_set="buffett") tool'undan gelen response'ı AYNEN YAML'e kopyala!
 
 ```yaml
 ticker: ASELS
 company_name: "ASELSAN Elektronik Sanayi ve Ticaret A.Ş."
 
-# Şirket profili (get_sirket_profili tool'undan)
+# Şirket profili (get_profile tool'undan)
 company_profile:
   sector: "Savunma"                  # Ana sektör
   market: "Yıldız Pazar"             # Borsa pazarı
   website: "https://aselsan.com.tr"  # Şirket web sitesi
   city: "Ankara"                     # Merkez şehir
   employees: 10000                   # Çalışan sayısı
-  # get_sirket_profili'den gelen tüm alanları buraya ekle
+  # get_profile'den gelen tüm alanları buraya ekle
 
-# Buffett analizi sonuçları (calculate_buffett_value_analysis tool'undan)
+# Buffett analizi sonuçları (get_financial_ratios(ratio_set="buffett") tool'undan)
 buffett_analysis:
   # Owner Earnings
   owner_earnings:
@@ -1698,8 +1720,8 @@ buffett_analysis:
 
 # Ham veriler (MCP tool'dan gelen, debug için)
 raw_data:
-  # calculate_buffett_value_analysis tool'unun döndürdüğü tüm ham veriler
-  # (bilanco, kar_zarar, nakit_akisi, hizli_bilgi)
+  # get_financial_ratios(ratio_set="buffett") tool'unun döndürdüğü tüm ham veriler
+  # (balance_sheet, income, cash_flow, quick_info)
 
 # Skorlar (Python'da hesaplanacak - ileride implement edilebilir)
 scores:
@@ -1717,7 +1739,7 @@ data_date: "{get_current_date}"
 ```
 
 ÖNEMLİ:
-- calculate_buffett_value_analysis tool'undan gelen JSON response'ı YAML'e çevir
+- get_financial_ratios(ratio_set="buffett") tool'undan gelen JSON response'ı YAML'e çevir
 - Sayıları AYNEN kopyala (tool'dan gelen değerler)
 - ⚠️ NEGATİF DEĞERLER: Eğer MCP tool negatif değer döndürüyorsa, null YERİNE gerçek negatif değeri yaz!
   Örnek: oe_quarterly: -500.0 (NEGATİF - sermaye yiyen durum)

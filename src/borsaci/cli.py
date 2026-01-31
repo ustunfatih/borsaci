@@ -14,6 +14,7 @@ from .utils.ui import print_banner, print_goodbye, print_help, print_error_banne
 from .utils.logger import Logger
 from .utils.loading import run_with_loading_and_cancel
 from .updater import check_and_auto_update
+from .config import get_config_manager, GoogleOAuthCredential, ProviderType
 
 
 # Custom prompt style
@@ -153,6 +154,179 @@ async def check_and_setup_openrouter_key(logger: Logger) -> bool:
         return False
 
 
+async def setup_google_oauth(logger: Logger, force_login: bool = False) -> bool:
+    """
+    Google OAuth login flow with OpenClaw pattern.
+
+    First checks for existing Gemini CLI tokens (~/.gemini/oauth_creds.json).
+    If found, reuses them without browser login.
+    Otherwise, uses Gemini CLI credentials for new OAuth flow.
+
+    Args:
+        logger: Logger instance for output
+        force_login: If True, skip token reuse and force new browser login
+
+    Returns:
+        True if OAuth successful, False otherwise
+    """
+    from .oauth import login_google_oauth, resolve_oauth_credentials, extract_tokens_from_gemini_cli
+
+    logger.log_info("🔐 Google Gemini OAuth Kurulumu")
+    print()
+
+    # First, try to reuse existing Gemini CLI tokens (no browser needed)
+    if not force_login:
+        existing_creds = extract_tokens_from_gemini_cli()
+        if existing_creds:
+            logger.log_info("Gemini CLI'dan mevcut token'lar bulundu")
+
+            cm = get_config_manager()
+            cm.save_google_oauth(
+                GoogleOAuthCredential(
+                    access_token=existing_creds.access_token,
+                    refresh_token=existing_creds.refresh_token,
+                    expires_at=existing_creds.expires_at,
+                    email=existing_creds.email,
+                ),
+                source="gemini-cli",
+            )
+            cm.set_active_provider("google")
+
+            email_info = f" ({existing_creds.email})" if existing_creds.email else ""
+            logger.log_success(f"Gemini CLI token'ları kullanılıyor!{email_info}")
+            return True
+
+    # No existing tokens, need browser login
+    try:
+        # Resolve credentials (Gemini CLI > Antigravity)
+        source, client_id, client_secret = resolve_oauth_credentials()
+        logger.log_info(f"OAuth credentials bulundu ({source})")
+    except Exception as e:
+        logger.log_error(f"OAuth credential hatası: {str(e)}")
+        return False
+
+    try:
+        logger.log_info("Browser ile giriş yapılıyor...")
+        cred = await login_google_oauth(
+            client_id=client_id,
+            client_secret=client_secret,
+        )
+
+        cm = get_config_manager()
+        cm.save_google_oauth(
+            GoogleOAuthCredential(
+                access_token=cred.access_token,
+                refresh_token=cred.refresh_token,
+                expires_at=cred.expires_at,
+                email=cred.email,
+            ),
+            source=source,
+        )
+        cm.set_active_provider("google")
+
+        email_info = f" ({cred.email})" if cred.email else ""
+        logger.log_success(f"Google OAuth başarılı!{email_info}")
+        return True
+
+    except KeyboardInterrupt:
+        logger.log_warning("\nOAuth iptal edildi.")
+        return False
+
+    except Exception as e:
+        logger.log_error(f"OAuth hatası: {str(e)}")
+        return False
+
+
+async def select_provider(logger: Logger) -> ProviderType:
+    """
+    Interactive provider selection.
+
+    Args:
+        logger: Logger instance for output
+
+    Returns:
+        Selected provider ("openrouter" or "google")
+    """
+    session = PromptSession()
+
+    logger.log_info("🔧 BorsaCI Provider Seçimi")
+    print()
+    print("  [1] OpenRouter (API Key)")
+    print("      https://openrouter.ai/keys adresinden key alın")
+    print()
+    print("  [2] Google Gemini (OAuth)")
+    print("      Browser ile Google hesabınıza giriş yapın")
+    print()
+
+    while True:
+        try:
+            choice = await session.prompt_async("Seçiminiz [1/2]: ")
+            choice = choice.strip()
+            if choice == "1":
+                return "openrouter"
+            elif choice == "2":
+                return "google"
+            else:
+                print("Geçersiz seçim. 1 veya 2 girin.")
+        except KeyboardInterrupt:
+            print("\nVarsayılan provider kullanılıyor: openrouter")
+            return "openrouter"
+
+
+async def check_and_setup_credentials(logger: Logger) -> bool:
+    """
+    Main credential check and setup flow.
+
+    Checks existing credentials and prompts for setup if needed.
+
+    Args:
+        logger: Logger instance for output
+
+    Returns:
+        True if valid credentials exist, False otherwise
+    """
+    cm = get_config_manager()
+
+    # Check existing credentials for active provider first
+    active = cm.get_active_provider()
+
+    if cm.has_valid_credentials(active):
+        if active == "openrouter":
+            logger.log_info("Provider: OpenRouter")
+        else:
+            email = cm.get_google_oauth().email if cm.get_google_oauth() else None
+            email_info = f" ({email})" if email else ""
+            logger.log_info(f"Provider: Google Gemini{email_info}")
+        return True
+
+    # Check if other provider has credentials
+    other = "google" if active == "openrouter" else "openrouter"
+    if cm.has_valid_credentials(other):
+        cm.set_active_provider(other)
+        if other == "openrouter":
+            logger.log_info("Provider: OpenRouter")
+        else:
+            email = cm.get_google_oauth().email if cm.get_google_oauth() else None
+            email_info = f" ({email})" if email else ""
+            logger.log_info(f"Provider: Google Gemini{email_info}")
+        return True
+
+    # No credentials - setup flow
+    provider = await select_provider(logger)
+
+    if provider == "openrouter":
+        success = await check_and_setup_openrouter_key(logger)
+        if success:
+            cm.set_active_provider("openrouter")
+            # Also save to config manager for consistency
+            key = os.getenv("OPENROUTER_API_KEY")
+            if key:
+                cm.save_openrouter_key(key)
+        return success
+    else:
+        return await setup_google_oauth(logger)
+
+
 async def async_main():
     """Async main function for CLI"""
     # Check for updates and auto-update if available
@@ -170,9 +344,9 @@ async def async_main():
     # Initialize logger
     logger = Logger()
 
-    # Check and setup OpenRouter API key if needed
-    if not await check_and_setup_openrouter_key(logger):
-        logger.log_error("OpenRouter API key gereklidir. Program sonlandırılıyor.")
+    # Check and setup credentials if needed
+    if not await check_and_setup_credentials(logger):
+        logger.log_error("API credentials gereklidir. Program sonlandırılıyor.")
         sys.exit(1)
 
     print()  # Empty line for spacing
@@ -237,6 +411,61 @@ async def async_main():
                     print_banner()
                     conversation_history = []  # Reset conversation
                     logger.log_info("Sohbet geçmişi temizlendi")
+                    continue
+
+                if query_lower == "login google":
+                    # Re-authenticate with Google OAuth (force fresh login to get correct scopes)
+                    success = await setup_google_oauth(logger, force_login=True)
+                    if success:
+                        logger.log_info("Provider Google'a değiştirildi. Lütfen programı yeniden başlatın.")
+                    continue
+
+                if query_lower == "login openrouter":
+                    # Re-setup OpenRouter API key
+                    success = await check_and_setup_openrouter_key(logger)
+                    if success:
+                        cm = get_config_manager()
+                        cm.set_active_provider("openrouter")
+                        key = os.getenv("OPENROUTER_API_KEY")
+                        if key:
+                            cm.save_openrouter_key(key)
+                        logger.log_info("Provider OpenRouter'a değiştirildi. Lütfen programı yeniden başlatın.")
+                    continue
+
+                if query_lower.startswith("provider"):
+                    # Show or switch provider
+                    cm = get_config_manager()
+                    parts = query_lower.split()
+
+                    if len(parts) == 1:
+                        # Show current provider info
+                        info = cm.get_provider_info()
+                        print()
+                        print(f"  Aktif Provider: {info['active']}")
+                        print()
+                        print("  OpenRouter:")
+                        print(f"    Durumu: {'Yapılandırılmış' if info['openrouter']['configured'] else 'Yapılandırılmamış'}")
+                        if info['openrouter']['key_preview']:
+                            print(f"    Key: {info['openrouter']['key_preview']}")
+                        print()
+                        print("  Google Gemini:")
+                        print(f"    Durumu: {'Yapılandırılmış' if info['google']['configured'] else 'Yapılandırılmamış'}")
+                        if info['google']['email']:
+                            print(f"    Email: {info['google']['email']}")
+                        if info['google']['source']:
+                            print(f"    Kaynak: {info['google']['source']}")
+                        print()
+
+                    elif len(parts) == 2 and parts[1] in ["openrouter", "google"]:
+                        new_provider = parts[1]
+                        if cm.has_valid_credentials(new_provider):
+                            cm.set_active_provider(new_provider)
+                            logger.log_success(f"Provider '{new_provider}' olarak değiştirildi. Lütfen programı yeniden başlatın.")
+                        else:
+                            logger.log_error(f"'{new_provider}' için credential bulunamadı. Önce 'login {new_provider}' komutunu çalıştırın.")
+                    else:
+                        logger.log_error("Kullanım: provider [openrouter|google]")
+
                     continue
 
                 # Process query with agent
@@ -321,12 +550,29 @@ Kullanım:
     borsaci --skip-update    Otomatik güncellemeyi atla
     borsaci --help           Bu yardım mesajını göster
 
+Provider Seçenekleri:
+    OpenRouter             API key ile (https://openrouter.ai/keys)
+    Google Gemini          OAuth ile (browser'da giriş)
+
+REPL Komutları:
+    provider               Aktif provider'ı göster
+    provider openrouter    OpenRouter'a geç
+    provider google        Google Gemini'ye geç
+    login google           Google OAuth ile yeniden giriş
+    login openrouter       OpenRouter key'i yeniden gir
+    clear                  Sohbet geçmişini temizle
+    exit                   Programı kapat
+
 Ortam Değişkenleri:
-    OPENROUTER_API_KEY   OpenRouter API key (zorunlu)
+    OPENROUTER_API_KEY   OpenRouter API key (opsiyonel - OAuth da kullanılabilir)
     HTTP_REFERER         OpenRouter app info (opsiyonel)
     X_TITLE              OpenRouter app başlığı (opsiyonel)
     MAX_STEPS            Maksimum adım sayısı (varsayılan: 20)
     MAX_STEPS_PER_TASK   Görev başına maksimum adım (varsayılan: 5)
+
+Credential Depolama:
+    ~/.borsaci/config.json           Yapılandırma dosyası
+    ~/.borsaci/credentials/          Credential dosyaları (chmod 600)
 
 Daha fazla bilgi:
     https://github.com/saidsurucu/borsaci

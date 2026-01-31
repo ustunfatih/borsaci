@@ -153,12 +153,21 @@ def _flatten_json_schema(schema: dict) -> dict:
     return clean_any_of(cleaned)
 
 
+# Delimiter for encoding thought signature in tool_call_id
+# Gemini 3 requires thought signatures to be preserved across function calls
+THOUGHT_SIG_DELIMITER = "::THOUGHT_SIG::"
+
+
 def _convert_messages_to_contents(messages: list[ModelMessage]) -> tuple[list[dict], Optional[dict]]:
     """
     Convert PydanticAI messages to Cloud Code API contents format.
 
     Returns:
         Tuple of (contents list, system_instruction dict or None)
+
+    Note:
+        Gemini 3 models require thought signatures to be preserved.
+        The thought signature is encoded in tool_call_id and decoded here.
     """
     contents = []
     system_instruction = None
@@ -201,12 +210,19 @@ def _convert_messages_to_contents(messages: list[ModelMessage]) -> tuple[list[di
                 if isinstance(part, TextPart):
                     parts.append({"text": part.content})
                 elif isinstance(part, ToolCallPart):
-                    parts.append({
+                    # Build function call part
+                    fc_part = {
                         "functionCall": {
                             "name": part.tool_name,
                             "args": part.args if isinstance(part.args, dict) else {}
                         }
-                    })
+                    }
+                    # Check if thought signature is encoded in tool_call_id (Gemini 3 requirement)
+                    if part.tool_call_id and THOUGHT_SIG_DELIMITER in part.tool_call_id:
+                        # Extract thought signature from encoded tool_call_id
+                        _, thought_sig = part.tool_call_id.split(THOUGHT_SIG_DELIMITER, 1)
+                        fc_part["thoughtSignature"] = thought_sig
+                    parts.append(fc_part)
             if parts:
                 contents.append({
                     "role": "model",
@@ -227,6 +243,10 @@ def _convert_response_to_model_response(
         response: Raw API response
         output_tool_name: If set, convert JSON text to tool call for structured output
         is_json_response: Whether the response is JSON mode
+
+    Note:
+        Gemini 3 models return thoughtSignature with function calls.
+        This is encoded in tool_call_id for later retrieval.
     """
     parts = []
 
@@ -257,10 +277,22 @@ def _convert_response_to_model_response(
                     parts.append(TextPart(content=text))
             elif "functionCall" in part:
                 fc = part["functionCall"]
+                tool_name = fc.get("name", "")
+
+                # Gemini 3 thought signature support:
+                # thoughtSignature is at part level, alongside functionCall
+                # We encode it in tool_call_id for preservation across the conversation
+                thought_sig = part.get("thoughtSignature")
+                if thought_sig:
+                    # Encode thought signature in tool_call_id
+                    tool_call_id = f"{tool_name}{THOUGHT_SIG_DELIMITER}{thought_sig}"
+                else:
+                    tool_call_id = tool_name
+
                 parts.append(ToolCallPart(
-                    tool_name=fc.get("name", ""),
+                    tool_name=tool_name,
                     args=fc.get("args", {}),
-                    tool_call_id=fc.get("name", ""),  # Use name as ID
+                    tool_call_id=tool_call_id,
                 ))
 
     # If no parts found, add empty text

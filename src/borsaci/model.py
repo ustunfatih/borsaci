@@ -19,13 +19,13 @@ MODEL_MAPPINGS = {
     },
     "google": {
         # Model names for Cloud Code Assist API (uses OAuth with cloud-platform scope)
-        # Available via cloudcode-pa.googleapis.com: gemini-2.0-flash, gemini-2.5-flash, gemini-2.5-pro
-        # NOTE: Gemini 3 models not yet available via Cloud Code API
-        "planning": "gemini-2.5-pro",    # Best reasoning for task decomposition
-        "action": "gemini-2.5-flash",    # Fast tool calling
-        "validation": "gemini-2.5-flash",
-        "answer": "gemini-2.5-flash",
-        "buffett": "gemini-2.5-flash",
+        # Available via cloudcode-pa.googleapis.com with -preview suffix
+        # Gemini 3 models now available: gemini-3-pro-preview, gemini-3-flash-preview
+        "planning": "gemini-3-pro-preview",    # Best reasoning for task decomposition
+        "action": "gemini-3-flash-preview",    # Fast tool calling
+        "validation": "gemini-3-flash-preview",
+        "answer": "gemini-3-flash-preview",
+        "buffett": "gemini-3-flash-preview",
     },
 }
 

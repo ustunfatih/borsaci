@@ -88,9 +88,9 @@ async def check_and_setup_openrouter_key(logger: Logger) -> bool:
     # Check if key exists in environment
     api_key = os.getenv("OPENROUTER_API_KEY")
 
-    # Debug logging
+    # Debug logging (sanitized - no key exposure)
     if "--debug" in sys.argv:
-        print(f"[DEBUG] OpenRouter key from env: {api_key[:10] + '...' if api_key else 'None'}")
+        print(f"[DEBUG] OpenRouter key from env: {'***REDACTED***' if api_key else 'None'}")
         print(f"[DEBUG] Key is truthy: {bool(api_key)}")
         if api_key:
             print(f"[DEBUG] Key is not placeholder: {api_key != 'sk-or-v1-your_key_here'}")
@@ -446,7 +446,7 @@ async def async_main():
                         print("  OpenRouter:")
                         print(f"    Durumu: {'Yapılandırılmış' if info['openrouter']['configured'] else 'Yapılandırılmamış'}")
                         if info['openrouter']['key_preview']:
-                            print(f"    Key: {info['openrouter']['key_preview']}")
+                            print(f"    Key: ***REDACTED***")
                         print()
                         print("  Google Gemini:")
                         print(f"    Durumu: {'Yapılandırılmış' if info['google']['configured'] else 'Yapılandırılmamış'}")

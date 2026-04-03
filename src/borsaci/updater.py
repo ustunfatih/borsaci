@@ -64,7 +64,9 @@ def get_local_commit() -> Optional[str]:
 
 
 def get_remote_commit() -> Optional[str]:
-    """Get remote commit hash from GitHub API."""
+    """Get remote commit hash from GitHub API with SSL verification."""
+    import ssl
+    
     try:
         req = urllib.request.Request(
             GITHUB_API_URL,
@@ -74,7 +76,12 @@ def get_remote_commit() -> Optional[str]:
             }
         )
 
-        with urllib.request.urlopen(req, timeout=GITHUB_API_TIMEOUT) as response:
+        # Create SSL context with strict verification
+        context = ssl.create_default_context()
+        context.check_hostname = True
+        context.verify_mode = ssl.CERT_REQUIRED
+
+        with urllib.request.urlopen(req, timeout=GITHUB_API_TIMEOUT, context=context) as response:
             data = json.loads(response.read().decode())
             return data.get("sha")
     except Exception:

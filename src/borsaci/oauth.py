@@ -49,7 +49,7 @@ def should_use_manual_oauth_flow() -> bool:
             with open("/proc/version") as f:
                 if "microsoft" in f.read().lower():
                     return True
-        except Exception:
+        except (IOError, OSError, PermissionError):
             pass
 
     # SSH session detection
@@ -96,7 +96,7 @@ def extract_from_gemini_cli() -> Optional[Tuple[str, Optional[str]]]:
             if result:
                 return result
 
-    except Exception:
+    except (IOError, OSError, PermissionError, json.JSONDecodeError):
         pass
 
     return None
@@ -124,7 +124,7 @@ def _extract_credentials_from_file(file_path: Path) -> Optional[Tuple[str, Optio
             client_id = client_id_match.group(1)
             client_secret = client_secret_match.group(1) if client_secret_match else None
             return (client_id, client_secret)
-    except Exception:
+    except (IOError, OSError, PermissionError, re.error):
         pass
     return None
 
@@ -148,40 +148,46 @@ def _find_oauth_files(start_dir: Path, max_depth: int = 10) -> Iterator[Path]:
                 continue
             if "oauth2.js" in files:
                 yield Path(root) / "oauth2.js"
-    except Exception:
+    except (IOError, OSError, PermissionError):
         pass
 
 
-def get_antigravity_credentials() -> Tuple[str, str]:
+def get_antigravity_credentials() -> Optional[Tuple[str, str]]:
     """
-    Return built-in Antigravity credentials (OpenClaw pattern).
-    Base64-encoded in source, decoded at runtime.
+    Get OAuth credentials from environment variables.
+    
+    Security fix: Removed hardcoded credentials. Users must now set up their own
+    Google Cloud project or use Gemini CLI credentials.
+    
+    Environment variables:
+        BORSA_OAUTH_CLIENT_ID: Google OAuth client ID
+        BORSA_OAUTH_CLIENT_SECRET: Google OAuth client secret (optional for PKCE)
 
     Returns:
-        Tuple of (client_id, client_secret)
+        Tuple of (client_id, client_secret) or None if not configured
     """
-    # OpenClaw google-antigravity-auth credentials (base64 encoded)
-    CLIENT_ID_B64 = "MTA3MTAwNjA2MDU5MS10bWhzc2luMmgyMWxjcmUyMzV2dG9sb2poNGc0MDNlcC5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbQ=="
-    CLIENT_SECRET_B64 = "R09DU1BYLUs1OEZXUjQ4NkxkTEoxbUxCOHNYQzR6NnFEQWY="
-
-    client_id = base64.b64decode(CLIENT_ID_B64).decode()
-    client_secret = base64.b64decode(CLIENT_SECRET_B64).decode()
-
-    return (client_id, client_secret)
+    client_id = os.getenv("BORSA_OAUTH_CLIENT_ID")
+    client_secret = os.getenv("BORSA_OAUTH_CLIENT_SECRET")
+    
+    if client_id:
+        return (client_id, client_secret)
+    
+    return None
 
 
 def resolve_oauth_credentials() -> Tuple[str, str, Optional[str]]:
     """
-    Resolve OAuth client credentials with priority (OpenClaw pattern):
+    Resolve OAuth client credentials with priority:
     1. Extract from installed Gemini CLI (automatic)
-    2. Use built-in Antigravity credentials (fallback)
+    2. Use environment variables BORSA_OAUTH_CLIENT_ID/SECRET
+    3. Raise error if no credentials found
 
     Returns:
         Tuple of (source, client_id, client_secret)
-        source = "gemini-cli" or "antigravity"
+        source = "gemini-cli" or "env"
 
-    Note:
-        NO env variable support - only these two methods.
+    Raises:
+        Exception: If no OAuth credentials are configured
     """
     # 1. Try Gemini CLI first
     creds = extract_from_gemini_cli()
@@ -189,9 +195,19 @@ def resolve_oauth_credentials() -> Tuple[str, str, Optional[str]]:
         client_id, client_secret = creds
         return ("gemini-cli", client_id, client_secret)
 
-    # 2. Fallback: Antigravity built-in credentials
-    client_id, client_secret = get_antigravity_credentials()
-    return ("antigravity", client_id, client_secret)
+    # 2. Try environment variables
+    creds = get_antigravity_credentials()
+    if creds:
+        client_id, client_secret = creds
+        return ("env", client_id, client_secret)
+
+    # No credentials found
+    raise Exception(
+        "No OAuth credentials found. Please either:\n"
+        "1. Install Gemini CLI and log in (recommended), or\n"
+        "2. Set BORSA_OAUTH_CLIENT_ID and BORSA_OAUTH_CLIENT_SECRET environment variables\n"
+        "   with your own Google Cloud project OAuth credentials."
+    )
 
 
 @dataclass
@@ -307,8 +323,16 @@ class OAuthCallbackHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         """Handle GET request from OAuth redirect"""
+        # Validate request path to prevent unauthorized access
         parsed = urlparse(self.path)
         if parsed.path == "/oauth2callback":
+            # Validate that request comes from localhost only
+            client_ip = self.client_address[0]
+            if client_ip not in ("127.0.0.1", "::1"):
+                self.send_response(403)
+                self.end_headers()
+                return
+                
             params = parse_qs(parsed.query)
             OAuthCallbackHandler.code = params.get("code", [None])[0]
             OAuthCallbackHandler.state = params.get("state", [None])[0]
@@ -355,7 +379,8 @@ async def wait_for_callback(expected_state: str, timeout: int = 300) -> str:
     OAuthCallbackHandler.state = None
     OAuthCallbackHandler.error = None
 
-    server = HTTPServer(("localhost", CALLBACK_PORT), OAuthCallbackHandler)
+    # Bind only to localhost interface for security (not 0.0.0.0)
+    server = HTTPServer(("127.0.0.1", CALLBACK_PORT), OAuthCallbackHandler)
     server.timeout = timeout
 
     # Run server in thread to not block

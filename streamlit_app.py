@@ -30,92 +30,71 @@ st.markdown("""
     padding: 2rem 2.5rem 1.75rem;
     margin-bottom: 1.5rem;
   }
-  .hero h1 { margin: 0; font-size: 2rem; font-weight: 700; letter-spacing: -0.5px; color: #ffffff !important; }
-  .hero p  { margin: 0.35rem 0 0; font-size: 1rem; color: rgba(255,255,255,0.75) !important; }
+  .hero h1 { margin: 0; font-size: 2rem; font-weight: 700; letter-spacing: -0.5px; color: #ffffff; }
+  .hero p  { margin: 0.35rem 0 0; font-size: 1rem; color: rgba(255,255,255,0.78); }
 
-  /* ---- Pill badges (always explicit colors, never inherit) ---- */
+  /* ---- Pill badges — self-contained colors, never inherit ---- */
   .badge {
     display: inline-block;
-    padding: 0.2rem 0.65rem;
+    padding: 0.2rem 0.7rem;
     border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 600;
+    font-size: 0.73rem;
+    font-weight: 700;
     margin-right: 0.4rem;
+    text-decoration: none;
   }
-  .badge-green  { background: #d1fae5 !important; color: #065f46 !important; }
-  .badge-blue   { background: #dbeafe !important; color: #1e40af !important; }
-  .badge-orange { background: #ffedd5 !important; color: #9a3412 !important; }
+  .badge-green  { background-color: #d1fae5; color: #065f46; }
+  .badge-blue   { background-color: #dbeafe; color: #1e40af; }
+  .badge-orange { background-color: #ffedd5; color: #9a3412; }
 
   /* ---- Rate-limit callout ---- */
   .rl-box {
-    background: #fff7ed;
+    background-color: #fff7ed;
     border-left: 4px solid #f97316;
     border-radius: 8px;
     padding: 0.85rem 1rem;
     font-size: 0.9rem;
     line-height: 1.6;
-    color: #431407 !important;
+    color: #431407;
   }
-  .rl-box strong, .rl-box b { color: #9a3412 !important; }
 
-  /* ---- Sidebar: dark background, targeted text coloring ---- */
+  /* ---- Sidebar: light slate, no color fighting needed ---- */
   section[data-testid="stSidebar"] {
-    background-color: #0f172a;
-  }
-  /* Sidebar headings and plain text */
-  section[data-testid="stSidebar"] h1,
-  section[data-testid="stSidebar"] h2,
-  section[data-testid="stSidebar"] h3,
-  section[data-testid="stSidebar"] h4,
-  section[data-testid="stSidebar"] h5,
-  section[data-testid="stSidebar"] p,
-  section[data-testid="stSidebar"] span:not([data-baseweb]),
-  section[data-testid="stSidebar"] label,
-  section[data-testid="stSidebar"] div[data-testid="stMarkdownContainer"] p,
-  section[data-testid="stSidebar"] div[data-testid="stMarkdownContainer"] li,
-  section[data-testid="stSidebar"] div[data-testid="stMetricLabel"],
-  section[data-testid="stSidebar"] div[data-testid="stMetricValue"] {
-    color: #e2e8f0 !important;
-  }
-  /* Sidebar selectbox / dropdown text */
-  section[data-testid="stSidebar"] [data-baseweb="select"] [class*="singleValue"],
-  section[data-testid="stSidebar"] [data-baseweb="select"] [class*="placeholder"] {
-    color: #f1f5f9 !important;
-  }
-  section[data-testid="stSidebar"] [data-baseweb="select"] [class*="control"] {
-    background-color: #1e293b !important;
-    border-color: #334155 !important;
-  }
-  /* Sidebar text input */
-  section[data-testid="stSidebar"] input[type="password"],
-  section[data-testid="stSidebar"] input[type="text"] {
-    background-color: #1e293b !important;
-    color: #f1f5f9 !important;
-    border-color: #334155 !important;
-  }
-  /* Sidebar section divider */
-  section[data-testid="stSidebar"] hr {
-    border-color: #1e293b !important;
+    background-color: #f1f5f9;
+    border-right: 1px solid #e2e8f0;
   }
 
-  /* ---- Main area: ensure chat text is always dark on light bg ---- */
-  .stChatMessage [data-testid="stMarkdownContainer"] p,
-  .stChatMessage [data-testid="stMarkdownContainer"] li,
-  .stChatMessage [data-testid="stMarkdownContainer"] h1,
-  .stChatMessage [data-testid="stMarkdownContainer"] h2,
-  .stChatMessage [data-testid="stMarkdownContainer"] h3,
-  .stChatMessage [data-testid="stMarkdownContainer"] strong,
-  .stChatMessage [data-testid="stMarkdownContainer"] em {
-    color: #1e293b !important;
+  /* ---- Ensure all text in main content and sidebar is dark ---- */
+  .main .block-container,
+  section[data-testid="stSidebar"] .block-container {
+    color: #0f172a;
+  }
+
+  /* ---- Chat messages: force dark text on light bubble ---- */
+  div[data-testid="stChatMessage"] {
+    color: #0f172a;
+  }
+  div[data-testid="stChatMessage"] p,
+  div[data-testid="stChatMessage"] li,
+  div[data-testid="stChatMessage"] h1,
+  div[data-testid="stChatMessage"] h2,
+  div[data-testid="stChatMessage"] h3,
+  div[data-testid="stChatMessage"] strong,
+  div[data-testid="stChatMessage"] em,
+  div[data-testid="stChatMessage"] span {
+    color: #0f172a;
   }
 
   /* ---- Input box ---- */
-  .stChatInput textarea { border-radius: 12px !important; }
+  .stChatInput textarea {
+    border-radius: 12px;
+    color: #0f172a;
+  }
 
   /* ---- Scrollbar ---- */
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
 </style>
 """, unsafe_allow_html=True)
 

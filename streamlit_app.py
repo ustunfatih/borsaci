@@ -419,6 +419,11 @@ def main():
         st.markdown("---")
 
         # Actions
+        if st.button("🏠 Ana Sayfa", use_container_width=True):
+            st.session_state.messages = []
+            st.session_state.show_welcome = True
+            st.rerun()
+
         if st.button("🗑️ Sohbeti Temizle", use_container_width=True):
             st.session_state.messages = []
             st.session_state.show_welcome = True
@@ -443,16 +448,24 @@ def main():
 
     # ── Main area ─────────────────────────────────────────────────────────────
 
-    # Hero header
-    st.markdown(
-        """
-        <div class="hero">
-          <h1>📈 BorsaCI</h1>
-          <p>Borsa İstanbul ve Türk finansal piyasaları için yapay zeka destekli analiz asistanı</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    # Hero header + home button
+    hero_col, btn_col = st.columns([5, 1])
+    with hero_col:
+        st.markdown(
+            """
+            <div class="hero">
+              <h1>📈 BorsaCI</h1>
+              <p>Borsa İstanbul ve Türk finansal piyasaları için yapay zeka destekli analiz asistanı</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with btn_col:
+        st.markdown("<div style='height:1.6rem'></div>", unsafe_allow_html=True)
+        if st.session_state.messages and st.button("🏠 Ana Sayfa", use_container_width=True, help="Yeni sorgu başlat"):
+            st.session_state.messages = []
+            st.session_state.show_welcome = True
+            st.rerun()
 
     # Gate on API key
     if not st.session_state.api_key:

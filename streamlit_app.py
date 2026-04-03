@@ -19,9 +19,8 @@ st.set_page_config(
 # ── Modern CSS theme ──────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-  /* ---- Global ---- */
+  /* ---- Global font ---- */
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
   html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
   /* ---- Hero header ---- */
@@ -30,12 +29,11 @@ st.markdown("""
     border-radius: 16px;
     padding: 2rem 2.5rem 1.75rem;
     margin-bottom: 1.5rem;
-    color: #fff;
   }
-  .hero h1 { margin: 0; font-size: 2rem; font-weight: 700; letter-spacing: -0.5px; }
-  .hero p  { margin: 0.35rem 0 0; font-size: 1rem; opacity: 0.75; }
+  .hero h1 { margin: 0; font-size: 2rem; font-weight: 700; letter-spacing: -0.5px; color: #ffffff !important; }
+  .hero p  { margin: 0.35rem 0 0; font-size: 1rem; color: rgba(255,255,255,0.75) !important; }
 
-  /* ---- Pill badges ---- */
+  /* ---- Pill badges (always explicit colors, never inherit) ---- */
   .badge {
     display: inline-block;
     padding: 0.2rem 0.65rem;
@@ -44,12 +42,9 @@ st.markdown("""
     font-weight: 600;
     margin-right: 0.4rem;
   }
-  .badge-green  { background: #d1fae5; color: #065f46; }
-  .badge-blue   { background: #dbeafe; color: #1e40af; }
-  .badge-orange { background: #ffedd5; color: #9a3412; }
-
-  /* ---- Quick action chips ---- */
-  .chip-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0 0.5rem; }
+  .badge-green  { background: #d1fae5 !important; color: #065f46 !important; }
+  .badge-blue   { background: #dbeafe !important; color: #1e40af !important; }
+  .badge-orange { background: #ffedd5 !important; color: #9a3412 !important; }
 
   /* ---- Rate-limit callout ---- */
   .rl-box {
@@ -59,14 +54,60 @@ st.markdown("""
     padding: 0.85rem 1rem;
     font-size: 0.9rem;
     line-height: 1.6;
+    color: #431407 !important;
+  }
+  .rl-box strong, .rl-box b { color: #9a3412 !important; }
+
+  /* ---- Sidebar: dark background, targeted text coloring ---- */
+  section[data-testid="stSidebar"] {
+    background-color: #0f172a;
+  }
+  /* Sidebar headings and plain text */
+  section[data-testid="stSidebar"] h1,
+  section[data-testid="stSidebar"] h2,
+  section[data-testid="stSidebar"] h3,
+  section[data-testid="stSidebar"] h4,
+  section[data-testid="stSidebar"] h5,
+  section[data-testid="stSidebar"] p,
+  section[data-testid="stSidebar"] span:not([data-baseweb]),
+  section[data-testid="stSidebar"] label,
+  section[data-testid="stSidebar"] div[data-testid="stMarkdownContainer"] p,
+  section[data-testid="stSidebar"] div[data-testid="stMarkdownContainer"] li,
+  section[data-testid="stSidebar"] div[data-testid="stMetricLabel"],
+  section[data-testid="stSidebar"] div[data-testid="stMetricValue"] {
+    color: #e2e8f0 !important;
+  }
+  /* Sidebar selectbox / dropdown text */
+  section[data-testid="stSidebar"] [data-baseweb="select"] [class*="singleValue"],
+  section[data-testid="stSidebar"] [data-baseweb="select"] [class*="placeholder"] {
+    color: #f1f5f9 !important;
+  }
+  section[data-testid="stSidebar"] [data-baseweb="select"] [class*="control"] {
+    background-color: #1e293b !important;
+    border-color: #334155 !important;
+  }
+  /* Sidebar text input */
+  section[data-testid="stSidebar"] input[type="password"],
+  section[data-testid="stSidebar"] input[type="text"] {
+    background-color: #1e293b !important;
+    color: #f1f5f9 !important;
+    border-color: #334155 !important;
+  }
+  /* Sidebar section divider */
+  section[data-testid="stSidebar"] hr {
+    border-color: #1e293b !important;
   }
 
-  /* ---- Sidebar tweaks ---- */
-  section[data-testid="stSidebar"] { background: #0f172a; }
-  section[data-testid="stSidebar"] * { color: #e2e8f0 !important; }
-  section[data-testid="stSidebar"] .stSelectbox label,
-  section[data-testid="stSidebar"] .stRadio label { color: #94a3b8 !important; font-size: 0.78rem !important; text-transform: uppercase; letter-spacing: 0.05em; }
-  section[data-testid="stSidebar"] hr { border-color: #1e293b !important; }
+  /* ---- Main area: ensure chat text is always dark on light bg ---- */
+  .stChatMessage [data-testid="stMarkdownContainer"] p,
+  .stChatMessage [data-testid="stMarkdownContainer"] li,
+  .stChatMessage [data-testid="stMarkdownContainer"] h1,
+  .stChatMessage [data-testid="stMarkdownContainer"] h2,
+  .stChatMessage [data-testid="stMarkdownContainer"] h3,
+  .stChatMessage [data-testid="stMarkdownContainer"] strong,
+  .stChatMessage [data-testid="stMarkdownContainer"] em {
+    color: #1e293b !important;
+  }
 
   /* ---- Input box ---- */
   .stChatInput textarea { border-radius: 12px !important; }

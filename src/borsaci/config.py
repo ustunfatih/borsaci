@@ -43,11 +43,12 @@ class ConfigManager:
         self._ensure_dirs()
 
     def _ensure_dirs(self):
-        """Create config directories if they don't exist"""
-        self.CONFIG_DIR.mkdir(exist_ok=True)
-        self.CREDENTIALS_DIR.mkdir(exist_ok=True)
+        """Create config directories if they don't exist with secure permissions"""
+        self.CONFIG_DIR.mkdir(exist_ok=True, mode=0o700)
+        self.CREDENTIALS_DIR.mkdir(exist_ok=True, mode=0o700)
         # Set credentials directory permissions (rwx------)
         try:
+            self.CONFIG_DIR.chmod(0o700)
             self.CREDENTIALS_DIR.chmod(0o700)
         except Exception:
             pass
@@ -60,7 +61,7 @@ class ConfigManager:
             try:
                 with open(self.CONFIG_FILE) as f:
                     self._config = BorsaConfig(**json.load(f))
-            except Exception:
+            except (IOError, OSError, json.JSONDecodeError, TypeError):
                 self._config = BorsaConfig()
         else:
             self._config = BorsaConfig()
@@ -75,15 +76,24 @@ class ConfigManager:
     # OpenRouter API Key Management
     def save_openrouter_key(self, api_key: str):
         """
-        Save OpenRouter API key to credentials file.
+        Save OpenRouter API key to credentials file with secure permissions.
+        
+        Security: File is created with restricted mode first to prevent race condition.
 
         Args:
             api_key: OpenRouter API key
         """
         cred_file = self.CREDENTIALS_DIR / "openrouter.json"
-        with open(cred_file, 'w') as f:
-            json.dump({"api_key": api_key}, f)
-        # Set file permissions (rw-------)
+        # Create file with restricted permissions using os.open with mode
+        import os
+        fd = os.open(str(cred_file), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            with os.fdopen(fd, 'w') as f:
+                json.dump({"api_key": api_key}, f)
+        except Exception:
+            os.close(fd)
+            raise
+        # Ensure permissions are set correctly (in case umask affected it)
         try:
             cred_file.chmod(0o600)
         except Exception:
@@ -107,7 +117,7 @@ class ConfigManager:
             try:
                 with open(cred_file) as f:
                     return json.load(f).get("api_key")
-            except Exception:
+            except (IOError, OSError, json.JSONDecodeError):
                 pass
         return None
 
@@ -115,15 +125,24 @@ class ConfigManager:
     def save_google_oauth(self, cred: GoogleOAuthCredential, source: Optional[str] = None):
         """
         Save Google OAuth credentials to file with secure permissions.
+        
+        Security: File is created with restricted mode first to prevent race condition.
 
         Args:
             cred: GoogleOAuthCredential instance
             source: Credential source ("gemini-cli" or "antigravity")
         """
         cred_file = self.CREDENTIALS_DIR / "google.json"
-        with open(cred_file, 'w') as f:
-            json.dump(cred.model_dump(), f, indent=2)
-        # Set file permissions (rw-------)
+        # Create file with restricted permissions using os.open with mode
+        import os
+        fd = os.open(str(cred_file), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            with os.fdopen(fd, 'w') as f:
+                json.dump(cred.model_dump(), f, indent=2)
+        except Exception:
+            os.close(fd)
+            raise
+        # Ensure permissions are set correctly (in case umask affected it)
         try:
             cred_file.chmod(0o600)
         except Exception:
@@ -147,7 +166,7 @@ class ConfigManager:
             try:
                 with open(cred_file) as f:
                     return GoogleOAuthCredential(**json.load(f))
-            except Exception:
+            except (IOError, OSError, json.JSONDecodeError, TypeError):
                 pass
         return None
 
